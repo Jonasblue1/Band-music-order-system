@@ -5,20 +5,20 @@ live band gigs, DJ gigs, and full event packages.
 This project is suitable for freelancers or small event management businesses that offer musical services.
 
  Features:
- 1.  Service Catalog – Choose from predefined services (Solo Performance, Live Band, DJ Gig, Full Package)
+ 1.  Service Catalog – Choose from predefined services (Solo Performance, Live Band, DJ Gig, Full Package),
 
-2.  Customer Order Input – Enter customer name and event date
+2.  Customer Order Input – Enter customer name and event date,
 
-3.  Order Tracking – View all past orders during runtime
+3.  Order Tracking – View all past orders during runtime,
 
-4.  Console-Based Interface – Simple menu-driven system
+4.  Console-Based Interface – Simple menu-driven system,
 
    
  Requirements:
  
-1.  A C++ compiler (e.g., g++)
+1.  A C++ compiler (e.g., g++),
 
-1.  Command-line terminal
+1.  Command-line terminal,
 
 Compilation:
 To compile the code, use:
