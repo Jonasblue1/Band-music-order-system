@@ -34,7 +34,8 @@ Music-LiveBand-Order-System/
 └── README.md        # Project documentation (this file)
 
 Sample Services Offered:
-ID	Service        Name	Price (₦)
+ID	Service   AND      Name	Price (₦)::
+
 1	Solo Music Performance	= 500.00,
 2	Live Band Performance =	1500.00,
 3	DJ Gig	= 800.00,
