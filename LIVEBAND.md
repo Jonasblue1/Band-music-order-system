@@ -1,4 +1,4 @@
- Music & Live Band Order Tracking System:
+ Music & Live Band Order Tracking System( click on like to view project output on replit: https://replit.com/join/gvzgyrvdca-jonature):
  
 This is a simple C++ console application for taking and tracking customer orders for music-related services such as solo performances,
 live band gigs, DJ gigs, and full event packages. 
@@ -58,4 +58,6 @@ Feel free to fork this project and contribute by submitting pull requests. For m
 
 Contact:
 Author: Okwuiwe Alphonsus Jonas 
-Email: okwuiwejonas163@gmail.com[Music_LiveBand_Order_System.zip](https://github.com/user-attachments/files/20496224/Music_LiveBand_Order_System.zip)
+Email: okwuiwejonas163@gmail.com
+[Music_LiveBand_Order_System.zip]
+(https://github.com/user-attachments/files/20496224/Music_LiveBand_Order_System.zip)
