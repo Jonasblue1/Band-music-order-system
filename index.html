@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Barcode Scanner Catalogue - Advanced with Display Mode</title>
+  <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <style>
+    #interactive.viewport {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      margin: auto;
+    }
+    #interactive.viewport video {
+      width: 100%;
+      height: auto;
+    }
+    #interactive.viewport canvas.drawingBuffer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .qr-code {
+      margin: 10px auto;
+      width: 150px;
+      height: 150px;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4" aria-label="Barcode Scanner Catalogue Application">
+  <header class="mb-4 text-center" role="banner">
+    <h1 class="text-3xl font-bold mb-1">Barcode Scanner Catalogue</h1>
+    <div id="status" class="text-sm font-semibold text-gray-700" aria-live="polite" aria-atomic="true"></div>
+  </header>
+
+  <main class="w-full max-w-md bg-white rounded shadow p-4" role="main">
+    <nav class="mb-4 flex justify-center space-x-4" role="navigation" aria-label="Main navigation">
+      <button id="mode-scan" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-pressed="true" aria-controls="scan-section" aria-label="Switch to Scan Mode">Scan Mode</button>
+      <button id="mode-display" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500" aria-pressed="false" aria-controls="display-section" aria-label="Switch to Display Mode">Display Mode</button>
+    </nav>
+
+    <section id="scan-section" aria-label="Barcode scanning section">
+      <div id="interactive" class="viewport" aria-live="polite" aria-atomic="true" aria-label="Camera feed for barcode scanning"></div>
+      <div class="flex justify-center mt-2">
+        <button id="start-scan" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-pressed="false" aria-label="Start barcode scanning">Start Scan</button>
+        <button id="stop-scan" class="bg-red-600 text-white px-4 py-2 rounded ml-2 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500" disabled aria-pressed="false" aria-label="Stop barcode scanning">Stop Scan</button>
+      </div>
+      <div class="mt-2 text-center">
+        <label for="manual-input" class="block text-gray-700 mb-1">Manual Barcode Input (fallback):</label>
+        <input type="text" id="manual-input" class="border border-gray-300 rounded px-2 py-1 w-full" placeholder="Enter barcode manually" aria-label="Manual barcode input" />
+        <button id="manual-submit" class="mt-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 w-full" aria-label="Submit manual barcode">Submit</button>
+      </div>
+      <div id="error-message" class="mt-2 text-red-600 font-semibold text-center" role="alert" aria-live="assertive"></div>
+      <div id="loading-message" class="mt-2 text-blue-600 font-semibold text-center" role="status" aria-live="polite" style="display:none;">Loading...</div>
+
+      <section class="mb-4 mt-6" aria-label="Scanned item details section">
+        <h2 class="text-xl font-semibold mb-2">Scanned Item Details</h2>
+        <div id="item-details" class="border border-gray-300 rounded p-3 bg-gray-50 min-h-[100px]" tabindex="0" aria-live="polite" aria-atomic="true">
+          <p class="text-gray-500">No item scanned yet.</p>
+        </div>
+      </section>
+
+      <section aria-label="Catalogue section">
+        <h2 class="text-xl font-semibold mb-2">Catalogue</h2>
+        <input type="text" id="search-catalogue" placeholder="Search items..." class="border border-gray-300 rounded px-2 py-1 w-full mb-2" aria-label="Search catalogue items" />
+        <div id="catalogue-list" class="max-h-48 overflow-y-auto border border-gray-300 rounded p-2 bg-white" tabindex="0" aria-live="polite" aria-atomic="true"></div>
+        <div class="flex justify-between mt-2">
+          <button id="prev-page" class="bg-gray-300 text-gray-700 px-3 py-1 rounded hover:bg-gray-400 focus:outline-none" aria-label="Previous page" disabled>Previous</button>
+          <span id="page-info" class="text-gray-700 self-center"></span>
+          <button id="next-page" class="bg-gray-300 text-gray-700 px-3 py-1 rounded hover:bg-gray-400 focus:outline-none" aria-label="Next page" disabled>Next</button>
+        </div>
+      </section>
+    </section>
+
+    <section id="display-section" aria-label="Display catalog section" style="display:none;">
+      <h2 class="text-xl font-semibold mb-2">Display Catalog - QR Codes</h2>
+      <p class="mb-4 text-gray-700">Clients can scan these QR codes to view product details.</p>
+      <div id="qr-codes-container" class="grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto border border-gray-300 rounded p-2 bg-white"></div>
+      <button id="qr-refresh" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Refresh QR codes">Refresh QR Codes</button>
+    </section>
+  </main>
+
+  <script>
+    // Sample catalogue data
+    const sampleCatalogue = [
+      { id: "012345678905", name: "Apple iPhone 13", description: "Latest Apple smartphone", price: 799, stock: 15 },
+      { id: "036000291452", name: "Samsung Galaxy S21", description: "Flagship Samsung phone", price: 699, stock: 10 },
+      { id: "123456789012", name: "Sony WH-1000XM4", description: "Noise cancelling headphones", price: 349, stock: 20 },
+      { id: "9780143127741", name: "The Great Gatsby", description: "Classic novel by F. Scott Fitzgerald", price: 10, stock: 50 },
+      { id: "9780262033848", name: "Introduction to Algorithms", description: "Comprehensive algorithms textbook", price: 80, stock: 5 },
+      { id: "4006381333931", name: "Coca-Cola 500ml", description: "Refreshing soft drink", price: 1.5, stock: 100 },
+      { id: "9780131103627", name: "The C Programming Language", description: "Classic programming book", price: 45, stock: 8 },
+      { id: "012345678906", name: "Dell XPS 13 Laptop", description: "High performance ultrabook", price: 999, stock: 7 },
+      { id: "9780596009205", name: "JavaScript: The Good Parts", description: "JavaScript programming guide", price: 25, stock: 12 },
+      { id: "123456789013", name: "Logitech MX Master 3", description: "Advanced wireless mouse", price: 99, stock: 18 }
+    ];
+
+    // Local storage keys
+    const CATALOGUE_KEY = "barcode_catalogue";
+    const SCAN_RESULTS_KEY = "barcode_scan_results";
+    const USER_PREFS_KEY = "barcode_user_prefs";
+
+    // Pagination settings
+    const ITEMS_PER_PAGE = 5;
+
+    // Elements
+    const statusEl = document.getElementById("status");
+    const startScanBtn = document.getElementById("start-scan");
+    const stopScanBtn = document.getElementById("stop-scan");
+    const errorMessageEl = document.getElementById("error-message");
+    const loadingMessageEl = document.getElementById("loading-message");
+    const itemDetailsEl = document.getElementById("item-details");
+    const catalogueListEl = document.getElementById("catalogue-list");
+    const searchCatalogueInput = document.getElementById("search-catalogue");
+    const manualInput = document.getElementById("manual-input");
+    const manualSubmitBtn = document.getElementById("manual-submit");
+    const prevPageBtn = document.getElementById("prev-page");
+    const nextPageBtn = document.getElementById("next-page");
+    const pageInfoEl = document.getElementById("page-info");
+
+    const modeScanBtn = document.getElementById("mode-scan");
+    const modeDisplayBtn = document.getElementById("mode-display");
+    const scanSection = document.getElementById("scan-section");
+    const displaySection = document.getElementById("display-section");
+    const qrCodesContainer = document.getElementById("qr-codes-container");
+    const qrRefreshBtn = document.getElementById("qr-refresh");
+
+    let scanning = false;
+    let currentPage = 1;
+    let filteredCatalogue = [];
+
+    // User preferences
+    let userPrefs = {
+      cameraResolution: { width: 400, height: 300 }
+    };
+
+    // Debounce utility
+    function debounce(func, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    // Initialize catalogue in localStorage if not present
+    function initCatalogue() {
+      if (!localStorage.getItem(CATALOGUE_KEY)) {
+        localStorage.setItem(CATALOGUE_KEY, JSON.stringify(sampleCatalogue));
+      }
+    }
+
+    // Get catalogue from localStorage
+    function getCatalogue() {
+      const data = localStorage.getItem(CATALOGUE_KEY);
+      return data ? JSON.parse(data) : [];
+    }
+
+    // Save catalogue to localStorage
+    function saveCatalogue(catalogue) {
+      localStorage.setItem(CATALOGUE_KEY, JSON.stringify(catalogue));
+    }
+
+    // Initialize user preferences
+    function initUserPrefs() {
+      const prefs = localStorage.getItem(USER_PREFS_KEY);
+      if (prefs) {
+        try {
+          userPrefs = JSON.parse(prefs);
+        } catch {
+          userPrefs = { cameraResolution: { width: 400, height: 300 } };
+        }
+      } else {
+        localStorage.setItem(USER_PREFS_KEY, JSON.stringify(userPrefs));
+      }
+    }
+
+    // Save user preferences
+    function saveUserPrefs() {
+      localStorage.setItem(USER_PREFS_KEY, JSON.stringify(userPrefs));
+    }
+
+    // Display catalogue list with pagination and optional search filter
+    function displayCatalogue(filter = "") {
+      const catalogue = getCatalogue();
+      filteredCatalogue = catalogue.filter(item =>
+        item.name.toLowerCase().includes(filter.toLowerCase()) ||
+        item.description.toLowerCase().includes(filter.toLowerCase()) ||
+        item.id.includes(filter)
+      );
+      currentPage = 1;
+      renderCataloguePage();
+    }
+
+    // Render current page of catalogue
+    function renderCataloguePage() {
+      const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+      const pageItems = filteredCatalogue.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+      if (pageItems.length === 0) {
+        catalogueListEl.innerHTML = "<p class='text-gray-500 text-center'>No items found.</p>";
+      } else {
+        catalogueListEl.innerHTML = pageItems.map(item => `
+          <div class="border-b border-gray-200 py-1 cursor-pointer hover:bg-gray-100" data-id="${item.id}" tabindex="0" role="button" aria-pressed="false" aria-label="View details for ${sanitizeHTML(item.name)}">
+            <p class="font-semibold">${sanitizeHTML(item.name)}</p>
+            <p class="text-sm text-gray-600">${sanitizeHTML(item.description)}</p>
+            <p class="text-sm text-gray-700">Price: $${item.price} | Stock: ${item.stock}</p>
+          </div>
+        `).join("");
+      }
+
+      pageInfoEl.textContent = `Page ${currentPage} of ${Math.max(1, Math.ceil(filteredCatalogue.length / ITEMS_PER_PAGE))}`;
+      prevPageBtn.disabled = currentPage === 1;
+      nextPageBtn.disabled = currentPage >= Math.ceil(filteredCatalogue.length / ITEMS_PER_PAGE);
+
+      // Add click and keyboard event to show item details
+      Array.from(catalogueListEl.children).forEach(div => {
+        div.addEventListener("click", () => {
+          const id = div.getAttribute("data-id");
+          const item = getCatalogue().find(i => i.id === id);
+          if (item) {
+            showItemDetails(item);
+          }
+        });
+        div.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            div.click();
+          }
+        });
+      });
+    }
+
+    // Show item details in the details area
+    function showItemDetails(item) {
+      itemDetailsEl.innerHTML = `
+        <h3 class="text-lg font-bold mb-1">${sanitizeHTML(item.name)}</h3>
+        <p class="mb-1">${sanitizeHTML(item.description)}</p>
+        <p class="mb-1 font-semibold">Price: $${item.price}</p>
+        <p class="mb-1">Stock Level: ${item.stock}</p>
+        <p class="text-sm text-gray-500">ID: ${sanitizeHTML(item.id)}</p>
+      `;
+      itemDetailsEl.focus();
+    }
+
+    // Show error message with retry option
+    function showError(message, retryCallback = null) {
+      errorMessageEl.textContent = message;
+      if (retryCallback) {
+        const retryBtn = document.createElement("button");
+        retryBtn.textContent = "Retry";
+        retryBtn.className = "ml-2 underline text-blue-600 hover:text-blue-800 focus:outline-none";
+        retryBtn.addEventListener("click", () => {
+          errorMessageEl.textContent = "";
+          retryCallback();
+        });
+        errorMessageEl.appendChild(retryBtn);
+      }
+    }
+
+    // Clear error message
+    function clearError() {
+      errorMessageEl.textContent = "";
+    }
+
+    // Show loading message
+    function showLoading(message = "Loading...") {
+      loadingMessageEl.textContent = message;
+      loadingMessageEl.style.display = "block";
+    }
+
+    // Hide loading message
+    function hideLoading() {
+      loadingMessageEl.style.display = "none";
+    }
+
+    // Clear item details
+    function clearItemDetails() {
+      itemDetailsEl.innerHTML = "<p class='text-gray-500'>No item scanned yet.</p>";
+    }
+
+    // Sanitize HTML to prevent injection
+    function sanitizeHTML(str) {
+      const temp = document.createElement('div');
+      temp.textContent = str;
+      return temp.innerHTML;
+    }
+
+    // Offline scan results queue
+    let offlineScanQueue = [];
+
+    // Load offline scan queue from localStorage
+    function loadOfflineScanQueue() {
+      const data = localStorage.getItem(SCAN_RESULTS_KEY);
+      offlineScanQueue = data ? JSON.parse(data) : [];
+    }
+
+    // Save offline scan queue to localStorage
+    function saveOfflineScanQueue() {
+      localStorage.setItem(SCAN_RESULTS_KEY, JSON.stringify(offlineScanQueue));
+    }
+
+    // Add scan result to offline queue
+    function addToOfflineQueue(code, item) {
+      offlineScanQueue.push({ code, item, timestamp: new Date().toISOString() });
+      saveOfflineScanQueue();
+    }
+
+    // Mock sync offline queue to backend
+    async function syncOfflineQueue() {
+      if (!navigator.onLine || offlineScanQueue.length === 0) return;
+      showLoading("Syncing scan results...");
+      try {
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Simulate successful sync by clearing queue
+        offlineScanQueue = [];
+        saveOfflineScanQueue();
+        hideLoading();
+        statusEl.textContent = "Status: Online (Synced)";
+        statusEl.classList.remove("text-red-600");
+        statusEl.classList.add("text-green-600");
+      } catch (error) {
+        hideLoading();
+        showError("Failed to sync scan results. Will retry later.");
+      }
+    }
+
+    // Handle barcode detected
+    function onBarcodeDetected(result) {
+      if (!result || !result.codeResult || !result.codeResult.code) {
+        showError("Barcode not recognized.");
+        return;
+      }
+      const code = sanitizeHTML(result.codeResult.code);
+      stopScanning();
+      lookupAndDisplayItem(code);
+    }
+
+    // Lookup item by barcode and display details
+    function lookupAndDisplayItem(code) {
+      clearError();
+      const catalogue = getCatalogue();
+      const item = catalogue.find(i => i.id === code);
+      if (item) {
+        showItemDetails(item);
+        addToOfflineQueue(code, item);
+        syncOfflineQueue();
+      } else {
+        showError("Item not found in catalogue.");
+        clearItemDetails();
+      }
+    }
+
+    // Start scanning with QuaggaJS
+    function startScanning() {
+      if (scanning) return;
+      scanning = true;
+      startScanBtn.disabled = true;
+      stopScanBtn.disabled = false;
+      clearError();
+      clearItemDetails();
+
+      Quagga.init({
+        inputStream: {
+          name: "Live",
+          type: "LiveStream",
+          target: document.querySelector('#interactive'),
+          constraints: {
+            facingMode: "environment",
+            width: userPrefs.cameraResolution.width,
+            height: userPrefs.cameraResolution.height
+          }
+        },
+        decoder: {
+          readers: [
+            "code_128_reader",
+            "ean_reader",
+            "ean_8_reader",
+            "code_39_reader",
+            "code_39_vin_reader",
+            "codabar_reader",
+            "upc_reader",
+            "upc_e_reader",
+            "i2of5_reader",
+            "2of5_reader",
+            "code_93_reader",
+            "qr_reader"
+          ]
+        },
+        locate: true,
+        numOfWorkers: navigator.hardwareConcurrency || 4,
+      }, function(err) {
+        if (err) {
+          showError("Error initializing camera: " + err.message, startScanning);
+          scanning = false;
+          startScanBtn.disabled = false;
+          stopScanBtn.disabled = true;
+          return;
+        }
+        Quagga.start();
+      });
+
+      Quagga.onDetected(onBarcodeDetected);
+    }
+
+    // Stop scanning
+    function stopScanning() {
+      if (!scanning) return;
+      scanning = false;
+      startScanBtn.disabled = false;
+      stopScanBtn.disabled = true;
+      Quagga.stop();
+      Quagga.offDetected(onBarcodeDetected);
+      clearCameraView();
+    }
+
+    // Clear camera view canvas
+    function clearCameraView() {
+      const canvas = document.querySelector('#interactive canvas.drawingBuffer');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    // Online/offline status
+    function updateOnlineStatus() {
+      if (navigator.onLine) {
+        statusEl.textContent = "Status: Online";
+        statusEl.classList.remove("text-red-600");
+        statusEl.classList.add("text-green-600");
+        syncOfflineQueue();
+      } else {
+        statusEl.textContent = "Status: Offline";
+        statusEl.classList.remove("text-green-600");
+        statusEl.classList.add("text-red-600");
+      }
+    }
+
+    // Manual barcode input submit
+    function manualSubmit() {
+      const code = manualInput.value.trim();
+      if (!code) {
+        showError("Please enter a barcode.");
+        return;
+      }
+      lookupAndDisplayItem(sanitizeHTML(code));
+      manualInput.value = "";
+    }
+
+    // Search catalogue input handler (debounced)
+    const onSearchInput = debounce(() => {
+      const filter = searchCatalogueInput.value.trim();
+      displayCatalogue(filter);
+    }, 300);
+
+    // Pagination controls
+    function prevPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        renderCataloguePage();
+      }
+    }
+    function nextPage() {
+      if (currentPage < Math.ceil(filteredCatalogue.length / ITEMS_PER_PAGE)) {
+        currentPage++;
+        renderCataloguePage();
+      }
+    }
+
+    // Display mode: generate QR codes for products
+    function generateQRCodes() {
+      qrCodesContainer.innerHTML = "";
+      const catalogue = getCatalogue();
+      catalogue.forEach(item => {
+        const container = document.createElement("div");
+        container.className = "border border-gray-300 rounded p-2 bg-white flex flex-col items-center";
+
+        const title = document.createElement("p");
+        title.textContent = item.name;
+        title.className = "font-semibold mb-1 text-center";
+        container.appendChild(title);
+
+        const qrDiv = document.createElement("div");
+        qrDiv.className = "qr-code";
+        container.appendChild(qrDiv);
+
+        // Generate QR code encoding the product ID
+        QRCode.toCanvas(qrDiv, item.id, { width: 150, margin: 1 }, function (error) {
+          if (error) console.error(error);
+        });
+
+        container.setAttribute("tabindex", "0");
+        container.setAttribute("aria-label", `QR code for ${item.name}, scan to view product details`);
+
+        qrCodesContainer.appendChild(container);
+      });
+    }
+
+    // Switch between scan and display modes
+    function switchMode(mode) {
+      if (mode === "scan") {
+        modeScanBtn.setAttribute("aria-pressed", "true");
+        modeDisplayBtn.setAttribute("aria-pressed", "false");
+        scanSection.style.display = "";
+        displaySection.style.display = "none";
+        stopScanning();
+      } else if (mode === "display") {
+        modeScanBtn.setAttribute("aria-pressed", "false");
+        modeDisplayBtn.setAttribute("aria-pressed", "true");
+        scanSection.style.display = "none";
+        displaySection.style.display = "";
+        generateQRCodes();
+        stopScanning();
+      }
+    }
+
+    // Initialization
+    function init() {
+      initCatalogue();
+      initUserPrefs();
+      loadOfflineScanQueue();
+      displayCatalogue();
+      updateOnlineStatus();
+
+      window.addEventListener("online", updateOnlineStatus);
+      window.addEventListener("offline", updateOnlineStatus);
+
+      startScanBtn.addEventListener("click", () => {
+        startScanBtn.setAttribute("aria-pressed", "true");
+        stopScanBtn.setAttribute("aria-pressed", "false");
+        startScanning();
+      });
+      stopScanBtn.addEventListener("click", () => {
+        startScanBtn.setAttribute("aria-pressed", "false");
+        stopScanBtn.setAttribute("aria-pressed", "true");
+        stopScanning();
+      });
+      manualSubmitBtn.addEventListener("click", manualSubmit);
+      searchCatalogueInput.addEventListener("input", onSearchInput);
+      prevPageBtn.addEventListener("click", prevPage);
+      nextPageBtn.addEventListener("click", nextPage);
+
+      modeScanBtn.addEventListener("click", () => switchMode("scan"));
+      modeDisplayBtn.addEventListener("click", () => switchMode("display"));
+    }
+
+    init();
+  </script>
+
+  <script>
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').then(registration => {
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        }).catch(error => {
+          console.log('ServiceWorker registration failed: ', error);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
