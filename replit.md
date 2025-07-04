@@ -1,5 +1,6 @@
 # BandBooker Pro - System Architecture
-
+Author :
+Jonas Alphonsus Okwuiwe
 ## Overview
 
 BandBooker Pro is a full-stack web application that connects bands with venue owners for event bookings. The application features a modern React frontend with TypeScript, a Node.js/Express backend, and PostgreSQL database with Drizzle ORM. The system enables bands to showcase their profiles and venue owners to discover and book musical acts for their events.
@@ -117,12 +118,6 @@ BandBooker Pro is a full-stack web application that connects bands with venue ow
 - **Static Assets**: Served from build directory
 - **API Routes**: Express server handles all `/api/*` routes
 
-## Changelog
-
-Changelog:
-- July 02, 2025. Initial setup
-- July 02, 2025. Currency changed from USD to Nigerian Naira (₦) throughout the application
-- July 02, 2025. Added copyright and patent licensing for Jonas Alphonsus Okwuiwe
 
 ## User Preferences
 
